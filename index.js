@@ -1,46 +1,142 @@
-var express = require("express");
-var router = express.Router();
-var controller = require("./controller");
+var express = require('express')
+var router = express.Router()
+var controller = require('./controller')
 const database = require("../../datas/database");
 const bcrypt = require('bcrypt')
 
-//Admin Home
-router.get('/',controller.adminIndex)
+
+router.get('/',controller.userIndex)
 
 
-// CATEGORY
-router.get("/category", controller.viewcategory);
-router.get("/addcategory", controller.addcategory);
-router.post("/addcategory", controller.categoryInsert);
-router.get("/deletecategory/:id", controller.categoryDelete);
-router.get("/editcategory/:id", controller.categoryEdit);
-router.post("/editcategory/:id", controller.categoryUpdate);
+//SINGLEPRODUCT
+router.get('/singleproduct/:id',controller.singleprdtView)
+//router.post("/product/:id",controller.singleprdtPost)
 
 
-// SUBCATEGORY
-router.get("/subcategory", controller.viewsubcategory);
-router.get("/addsub", controller.addsubcategory);
-router.post("/addsub", controller.subcategoryInsert);
-router.get("/deletesubcategory/:id", controller.subcategoryDelete);
-router.get("/editsubcategory/:id", controller.subcategoryEdit);
-router.post("/editsubcategory/:id", controller.subcategoryUpdate);
+// VIEW CATEGORY LIST
+router.get("/", controller.home);
 
-
-// PRODUCT
-router.get("/product", controller.viewproduct);
-router.get("/addproduct", controller.addprdt);
-router.post("/addproduct", controller.productInsert);
-router.get("/deleteproduct/:id", controller.productDelete);
-router.get("/editproduct/:id", controller.productEdit);
-router.post("/editproduct/:id", controller.productUpdate);
-
-
-// USER
-router.get("/user", controller.user);
-router.get("/adduser", controller.addusr);
-router.post("/adduser", controller.userInsert);
+// category-wise product list
+router.get("/category/:id", function(req, res) {
+  var id = req.params.id;
+  database.then(function(dbo) {
+    // match products by category id
+    dbo.collection("categorybox")
+      .aggregate([
+        { $match: { categoryId: id } }
+      ])
+      .toArray()
+      .then(function(products) {
+        res.render("user/categoryproduct", { products: products });
+      });
+  });
+});
 
 
 
+//REGISTER
+
+router.get("/register", controller.userRegister);
+
+//Create( Insert)
+
+router.post('/register', (req, res) => {
+    var params = {
+        username: req.body.username,
+        email: req.body.email,
+        password: req.body.password,
+        repeatyourpassword: req.body.repeat,
+        usertype: 1
+    }
+
+    database.then((dbo) => {
+
+        bcrypt.hash(req.body.password, 10).then((resPass) => {
+            params.password = resPass
+            dbo.collection('registration').insertOne(params).then((result) => {
+                console.log(result);
+            })
+        })
+            .catch(err => console.error(err)
+            )
+    })
+    res.redirect('/register')
+})
+
+
+
+//LOGIN
+
+router.get("/login", controller.bookLogin);
+
+//Create (Insert)
+
+router.post('/login', (req, res) => {
+
+    var params = {
+        email: req.body.email,
+        password: req.body.password
+    }
+
+
+    database.then((dbo) => {
+        dbo.collection('registration').findOne({ email: params.email }).then((data) => {
+            if (data) {
+
+                bcrypt.compare(params.password, data.password).then((resPass) => {
+
+                    if (resPass) {
+                        if (data.usertype == 1) {
+                            req.session.data = data
+                            res.redirect('/')
+
+                        }
+                        else {
+                            req.session.data = data
+                            res.redirect('/login')
+                        }
+                    }
+                    else {
+                        console.log("invalid password");
+                            res.redirect('/login')
+
+                    }
+                })
+            }
+            else {
+                console.log("invaliduser");
+                            res.redirect('/login')
+
+            }
+        })
+            .catch(err => console.error(err)
+            )
+    })
+});
+
+
+
+//LOGOUT 
+
+router.get('/logout',(req,res)=>{
+    
+    req.session.destroy((err) => {
+        if (err) {
+           console.error(err);
+           console.log("data destroyed");
+           res.redirect('/login')
+        }  
+           console.log("data destroyed niji",req.session);
+           res.redirect('/register')
+
+
+    })
+ });
+
+
+ 
+ //CART
+
+ router.get("/cart",controller.cartIndex);
 
 module.exports = router;
